@@ -24,7 +24,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException, Query, Response
 
 
-from db import connect, fetch_all
+from db import connect, fetch_all, execute
 
 
 app = FastAPI(
@@ -253,6 +253,8 @@ def create_products(product: ProductCreate):
     return {"message": "Valid data!", "product": product}
 
 #=============================================================================================================================================================================
+#                                                                          //  POST   //
+#=============================================================================================================================================================================
 from datetime import date, datetime
 
 class MessageIn(BaseModel): 
@@ -266,20 +268,108 @@ class MessageIn(BaseModel):
 
 
 
-# @app.post("/api/messages", status_code=201, tags=["Messages"])
-# def create_message(body: MessageIn, response: Response): 
-#     """Send a message from the contact form."""
-#     with connect(write=True) as conn:
-#         new_id= execute(
-#             conn, 
-#             "INSERT INTO contact_messages (name, email, message) VALUES (%s, %s, %s)",
+@app.post("/api/messages", status_code=201, tags=["Messages"])
+def create_message(body: MessageIn, response: Response): 
+    """Send a message from the contact form."""
+    with connect(write=True) as conn:
+        _, new_id = execute(
+            conn, 
+            "INSERT INTO contact_messages (name, email, message) VALUES (%s, %s, %s)",
+            (body.name, body.email, body.message),
+        )
+        conn.commit() #autocommit is OFF in the Python connector: no commit, no row 
+        sent_at = fetch_all(
+            conn, "SELECT * FROM v_owner_messages WHERE id=%s", {new_id,}
+        )
 
-#         )
+#===============================================================================================================================================================================
+#                                                                             // PATCH //
+#===============================================================================================================================================================================
+class MessageOut(BaseModel):
+    """What the owner reads back."""
+    id: int
+    name: str
+    email:str
+    message:str
+    sent_st: datetime
+    is_read: bool
+
+class MessagePatch(BaseModel):
+    """The only thing th owner changes on a message."""
+
+    is_read: bool
 
 
+@app.patch("/api/messages/{message_id}", response_model=MessageOut, tags=["Messages"])
+def mark_message(message_id: int, body: MessagePatch):
+    """Mark a message read or unread."""
+    with connect(write=True) as conn:
+        execute(
+            conn,
+            "UPDATE contact_message SET is_read = %s WHERE message_id = %s",
+            (body.is_read, message_id),
+        )
+        conn.commit()
+        # Look it up instead of trusting rowcount UPDATE counts rows CHANGED, not rows FOUND.
+        rows = fetch_all(conn, "SELECT * FROM v_owner_messages WHERE id = %s", (message_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No message with id {message_id}.")
+    return rows[0]
+# =============================================================================================================================================================================
+#                                                                     //   DELETE   //
+#=============================================================================================================================================================================
+@app.delete("/api/messgaes/{message_id}", status_code=204, tags=["Messages"])
+def delete_message(message_id: int):
+    """Delete a message."""
+    with connect(Write=True) as conn:
+        deleted, _ = execute(conn, "DELETE FROM contact_messages WHERE message_id = %s", (message_id))
+        conn.commit()
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail=f"No message with id {message_id}.")
+    return Response(status_code=204)
 
+#==============================================================================================================================================================================
+#                                                                     //  PUT  //
+#==============================================================================================================================================================================
 
+class MessageOut(BaseModel):
+    """What the owner reads back."""
+    id: int
+    name: str
+    email:str
+    message:str
+    sent_st: datetime
+    is_read: bool
 
+class MessagePut(BaseModel):
+    """The only thing th owner changes on a message."""
+
+    is_read: bool
+
+@app.put("/api/messages/{message_id}", response_model=MessageOut, tags=["Messages"])
+def mark_message(message_id: int, body: MessagePut):
+    """Mark a message read or unread."""
+    with connect(write=True) as conn:
+        execute(
+            conn,
+            "UPDATE contact_message SET is_read = %s WHERE message_id = %s",
+            (body.is_read, message_id),
+        )
+        conn.commit()
+        # Look it up instead of trusting rowcount UPDATE counts rows CHANGED, not rows FOUND.
+        rows = fetch_all(conn, "SELECT * FROM v_owner_messages WHERE id = %s", (message_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No message with id {message_id}.")
+    return rows[0]
+
+@app.get("/api/projects/{project_id}", tags=["Projects"])
+def get_project(project_id: int):
+    """One project by it's id,"""
+    with connect() as conn:
+        rows = fetch_all(conn, "SELECT * FROM v_api_projects WHERE id = %s", (project_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No project with id (project_id),")
+    return rows[0]
 
 
 
