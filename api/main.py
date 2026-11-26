@@ -17,11 +17,15 @@ def greet():
 
 
 import json
+import os
+
 from datetime import datetime, date
 from typing import Literal
 
-
-from fastapi import FastAPI, HTTPException, Query, Response
+from github import router as github_router
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Query, Response, Depends
+from security import required_owner
 
 
 from db import connect, fetch_all, execute
@@ -33,6 +37,7 @@ app = FastAPI(
     description="Ananya Rao's career from future_portfolio_db.",
 )
 
+OWNER = [Depends(required_owner)]
 
 category = Literal["company","industry","community"]
 
@@ -373,11 +378,48 @@ def get_project(project_id: int):
 
 
 
+@app.get("/api/messages", response_class=list[MessageOut], tags=["Messages"], dependencies=OWNER)
+def list_messages(
+    response: Response,
+    page: int = Query(1, ge=1),
+    limit: int =Query(50, ge=1, le=50),
+):
+    """Owner only: newest first."""
+    return list_from_view(response, "v_owner_messages", [], [], "sent_at DESC, id DESC", page, limit)
+
+import json
+import os
+from typing import Literal
+
+import mysql.connector
+from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi.middleware.cors import CORSMiddleware
+
+import json
+from datetime import date,datetime
+from typing import Literal 
+from fastapi import Depends,FastAPI, Query, Response
+# from security import require_owner
+from github import router as github_router
 
 
+from db import connect, fetch_all,execute
 
+app = FastAPI(title="Future Portfolio API", version="2.0")
+# add_error_handlers(app)  # one error format, for every kind of error
+app.include_router(github_router)
 
-
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://127.0.0.1:5500").split(",")
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "X-API-Key"],
+    expose_headers=["X-Total-Count", "Location"],  # without this, headers.get("X-Total-Count") is null
+)
 
 
 
