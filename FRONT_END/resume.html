@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f5f8">
+  <title>Resume</title>
+
+</head>
+<body>
+  <main class="page">
+    <div class="toolbar">
+      <p class="toolbar-label">Career profile</p>
+    </div>
+
+    <p id="status" class="status" role="status" aria-live="polite">Loading resume...</p>
+
+    <article id="resume-sheet" class="resume-sheet" hidden>
+      <header class="resume-header">
+        <div>
+          <p class="eyebrow">Professional resume</p>
+          <h1 id="profile-name"></h1>
+          <p id="profile-headline" class="headline" hidden></p>
+          <p id="profile-summary" class="profile-summary" hidden></p>
+        </div>
+        <dl id="profile-details" class="profile-details" hidden></dl>
+      </header>
+
+      <hr>
+
+      <section id="summary-section" class="resume-section" hidden>
+        <h2>Highlights</h2>
+        <div id="summary-content" class="summary-grid"></div>
+      </section>
+
+      <hr>
+
+      <section id="experience-section" class="resume-section" hidden>
+        <h2>Experience</h2>
+        <div id="experience-content"></div>
+      </section>
+
+      <hr>
+
+      <section id="projects-section" class="resume-section" hidden>
+        <h2>Projects</h2>
+        <div id="projects-content"></div>
+      </section>
+
+      <hr>
+
+      <section id="skills-section" class="resume-section" hidden>
+        <h2>Skills</h2>
+        <div id="skills-content"></div>
+      </section>
+
+      <hr>
+
+      <section id="education-section" class="resume-section" hidden>
+        <h2>Education</h2>
+        <div id="education-content"></div>
+      </section>
+
+      <hr>
+
+      <section id="awards-section" class="resume-section" hidden>
+        <h2>Awards</h2>
+        <div id="awards-content"></div>
+      </section>
+
+      <hr>
+
+      <p id="generated-at" class="generated-at"></p>
+    </article>
+  </main>
+  <script src="app.js" defer></script>
+</body>
+</html>

@@ -31,12 +31,6 @@ from security import required_owner
 from db import connect, fetch_all, execute
 
 
-app = FastAPI(
-    title="Future Portfolio API",
-    version="2.0",
-    description="Ananya Rao's career from future_portfolio_db.",
-)
-
 OWNER = [Depends(required_owner)]
 
 category = Literal["company","industry","community"]
@@ -57,8 +51,8 @@ def list_from_view(response: Response, view: str, where: list[str], params: list
         total = fetch_all(conn, f"SELECT COUNT(*) AS total FROM {view}{where_sql}", params) [0]["total"]
         rows = fetch_all(
             conn,
-            f"SELECT * FROM {view}{where_sql} ORDER BY {order} LIMIT %s",
-            [*params, limit, (page - 1) * limit],
+            f"SELECT * FROM {view}{where_sql} ORDER BY {order} LIMIT %s, %s",
+            [*params, (page - 1) * limit, limit],
         )
 
 
@@ -70,7 +64,7 @@ def parse_skills(rows):
     """The skill cloumn is JSON text (JSON_ARRAYAGG); turn it into a list."""
     for row in rows:
         row["skills"] = json.loads(row["skills"]) if row["skills"] else []
-        return rows
+    return rows
 
 
 # @app.get("/api/resume", tags=["Resume"])
@@ -117,8 +111,10 @@ def get_projects(response: Response,
     if company is not None:
         where.append("company = %s")
         params.append(company)
-        rows = list_from_view(response, "v_api_projects", where, params, "project_id, page", page, list)
-        return parse_skills(rows)
+    rows = list_from_view(
+        response, "v_api_projects", where, params, "project_id", page, limit
+    )
+    return parse_skills(rows)
 
 def build_resume(conn):
     """Assemble the WHOLE resume as one dictionary.
@@ -178,25 +174,6 @@ def get_resume():
 
 
 @app.get(
-    "/api/summary",
-    tags=["Summary"],
-    summary="Get the complete resume document",
-    description="Builds the whole resume (profile, summary, experience, projects, skills, education, awards) from the views on every request, so it is always current. The response can be large; prefer the specific endpoints when you need one section.",
-    responses={200: {"description": "The full resume JSON document."},
-               500: {"description": "Database unreachable or a view is missing."}},
-)
-def get_summary():
-    """Return the complete resume in one go.
-
-    WHAT: every section of the portfolio inside one JSON document.
-    WHY:  convenient for a client that wants everything with a single request.
-    HOW:  open the database and let build_resume() assemble the document.
-    """
-    with connect() as conn:
-        return fetch_all(conn)  
-
-
-@app.get(
     "/api/experience",
     tags=["Experience"],
     summary="lists the work experience.",
@@ -219,16 +196,16 @@ def get_experience():
                )
 def get_skills():
     with connect() as conn:
-        return fetch_all(conn, "SELECT * FROM v_api_experience ORDER BY start_date DESC, id")
+        return fetch_all(conn, "SELECT * FROM v_api_skills ORDER BY project_count DESC, skill")
 
 
 @app.get("/api/awards/{award_id}", tags=["Awards"])
-def get_award(awards_id: int):
+def get_award(award_id: int):
     """One award by it's id,"""
     with connect() as conn:
-        rows = fetch_all(conn, "SELECT * FROM v_api_awards WHERE id = %s", (awards_id,))
+        rows = fetch_all(conn, "SELECT * FROM v_api_awards WHERE id = %s", (award_id,))
     if not rows:
-        raise HTTPException(status_code=404, detail=f"No award with id (award_id),")
+        raise HTTPException(status_code=404, detail=f"No award with id {award_id}.")
     return rows[0]
 
 
@@ -246,8 +223,6 @@ def get_project(project_id: int):
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-
-app = FastAPI()
 
 class ProductCreate(BaseModel):
     name: str = Field(min_length=3, max_length=180)
@@ -274,18 +249,16 @@ class MessageIn(BaseModel):
 
 
 @app.post("/api/messages", status_code=201, tags=["Messages"])
-def create_message(body: MessageIn, response: Response): 
+def create_message(body: MessageIn):
     """Send a message from the contact form."""
-    with connect(write=True) as conn:
+    with connect() as conn:
         _, new_id = execute(
             conn, 
             "INSERT INTO contact_messages (name, email, message) VALUES (%s, %s, %s)",
             (body.name, body.email, body.message),
         )
         conn.commit() #autocommit is OFF in the Python connector: no commit, no row 
-        sent_at = fetch_all(
-            conn, "SELECT * FROM v_owner_messages WHERE id=%s", {new_id,}
-        )
+    return {"id": new_id, "message": "Message sent successfully."}
 
 #===============================================================================================================================================================================
 #                                                                             // PATCH //
@@ -405,13 +378,14 @@ from github import router as github_router
 
 from db import connect, fetch_all,execute
 
-app = FastAPI(title="Future Portfolio API", version="2.0")
 # add_error_handlers(app)  # one error format, for every kind of error
 app.include_router(github_router)
 
 ALLOWED_ORIGINS = [
     origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", "http://127.0.0.1:5500").split(",")
+    for origin in os.getenv(
+        "CORS_ORIGINS", "http://127.0.0.1:5500,http://localhost:5500"
+    ).split(",")
 ]
 app.add_middleware(
     CORSMiddleware,
